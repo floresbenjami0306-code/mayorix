@@ -5,7 +5,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 
 const AuthContext = createContext();
@@ -19,45 +19,80 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function register(email, password, name, phone) {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
+  // Registro de usuario en Firebase Authentication y creación de documento en Firestore
+  async function signup(email, password, name, phone) {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
+    // Guarda el perfil inicial del usuario en la colección 'users'
     await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      name,
-      email,
-      phone,
-      createdAt: serverTimestamp(),
-      hasVerifiedLocation: false, // se activa cuando publique su primer producto con ubicación + foto
+      name: name || "",
+      email: email || "",
+      phone: phone || "",
+      hasVerifiedLocation: false,
+      location: null,
+      storePhotoUrl: "",
+      createdAt: new Date().toISOString(),
     });
 
     return user;
   }
 
+  // Inicio de sesión
   function login(email, password) {
     return signInWithEmailAndPassword(auth, email, password);
   }
 
+  // Cierre de sesión
   function logout() {
     return signOut(auth);
   }
 
+  // Observador de estado de autenticación y carga de perfil en tiempo real
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeProfile = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+
       if (user) {
-        const docSnap = await getDoc(doc(db, "users", user.uid));
-        setUserProfile(docSnap.exists() ? docSnap.data() : null);
+        const userDocRef = doc(db, "users", user.uid);
+        unsubscribeProfile = onSnapshot(
+          userDocRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              setUserProfile(docSnap.data());
+            } else {
+              setUserProfile(null);
+            }
+            setLoading(false);
+          },
+          (err) => {
+            console.error("Error al escuchar perfil del usuario:", err);
+            setLoading(false);
+          }
+        );
       } else {
         setUserProfile(null);
+        if (unsubscribeProfile) unsubscribeProfile();
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
-  const value = { currentUser, userProfile, register, login, logout };
+  const value = {
+    currentUser,
+    userProfile,
+    signup,
+    register: signup, // Alias para compatibilidad
+    login,
+    logout,
+  };
 
   return (
     <AuthContext.Provider value={value}>

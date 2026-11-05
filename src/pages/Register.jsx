@@ -27,7 +27,16 @@ export default function Register() {
       navigate("/");
     } catch (err) {
       console.error("Error al registrar cuenta:", err);
-      setError("No se pudo completar el registro. Verifica el correo e intenta de nuevo.");
+
+      if (err.code === "auth/email-already-in-use") {
+        setError("Este correo ya está registrado. Si borraste el usuario recientemente, espera unos instantes o inicia sesión.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("El formato del correo electrónico no es válido.");
+      } else if (err.code === "auth/weak-password") {
+        setError("La contraseña es muy débil. Usa al menos 6 caracteres combinando letras y números.");
+      } else {
+        setError("No se pudo completar el registro: " + (err.message || "Error desconocido."));
+      }
     } finally {
       setLoading(false);
     }
@@ -65,7 +74,7 @@ export default function Register() {
               <input
                 type="text"
                 className="form-input"
-                placeholder="Ej. Benjamín Flores"
+                placeholder="Ej. Benjamín Flores Ampuero"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -77,7 +86,7 @@ export default function Register() {
               <input
                 type="tel"
                 className="form-input"
-                placeholder="Ej. 70000000"
+                placeholder="Ej. 75139235"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -89,7 +98,7 @@ export default function Register() {
               <input
                 type="email"
                 className="form-input"
-                placeholder="ejemplo@correo.com"
+                placeholder="floresbenjamin0306@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -101,7 +110,7 @@ export default function Register() {
               <input
                 type="password"
                 className="form-input"
-                placeholder="Crea una contraseña segura"
+                placeholder="Ingresa una contraseña segura"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
